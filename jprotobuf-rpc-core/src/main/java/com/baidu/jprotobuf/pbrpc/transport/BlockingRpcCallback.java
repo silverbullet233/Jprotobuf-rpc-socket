@@ -16,12 +16,11 @@
 
 package com.baidu.jprotobuf.pbrpc.transport;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import com.baidu.jprotobuf.pbrpc.data.RpcDataPackage;
 import com.google.protobuf.RpcCallback;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 /**
  * A blocking RPC call back handler.
  * 
@@ -32,7 +31,7 @@ import com.google.protobuf.RpcCallback;
 public class BlockingRpcCallback implements RpcCallback<RpcDataPackage> {
     
     /** The log. */
-    private static Logger LOG = Logger.getLogger(BlockingRpcCallback.class.getName());
+    private static Logger LOG = LoggerFactory.getLogger(BlockingRpcCallback.class);
 
     /** The done. */
     private boolean done = false; // 会话完成标识
@@ -42,6 +41,8 @@ public class BlockingRpcCallback implements RpcCallback<RpcDataPackage> {
     
     /** RPC data message. */
     private RpcDataPackage message; // 响应消息
+
+    private long createTime = 0;
     
     /**
      * Instantiates a new blocking rpc callback.
@@ -57,7 +58,12 @@ public class BlockingRpcCallback implements RpcCallback<RpcDataPackage> {
 	public BlockingRpcCallback(CallbackDone callbackDone) {
 		super();
 		this.callbackDone = callbackDone;
+        this.createTime = System.currentTimeMillis();
 	}
+
+    public long getCreateTime() {
+        return createTime;
+    }
 
 
 	/**
@@ -72,12 +78,11 @@ public class BlockingRpcCallback implements RpcCallback<RpcDataPackage> {
             try {
                 callbackDone.done();
             } catch (Exception e) {
-                if (LOG.isLoggable(Level.FINE)) {
-                    LOG.log(Level.FINE, e.getMessage(), e);
-                }
+                LOG.info(e.getMessage(), e);
             }
         }
         synchronized (this) {
+            LOG.info("done after create {} ms, callback {}", System.currentTimeMillis() - createTime, this);
             done = true;
             this.notifyAll();
         }

@@ -18,7 +18,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import com.baidu.jprotobuf.pbrpc.ClientAttachmentHandler;
 import com.baidu.jprotobuf.pbrpc.ErrorDataException;
@@ -42,6 +41,8 @@ import com.baidu.jprotobuf.pbrpc.transport.handler.ErrorCodes;
 import com.baidu.jprotobuf.pbrpc.utils.ServiceSignatureUtils;
 import com.baidu.jprotobuf.pbrpc.utils.StringUtils;
 import com.baidu.jprotobuf.pbrpc.utils.TalkTimeoutController;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Protobuf RPC proxy utility class.
@@ -54,13 +55,13 @@ import com.baidu.jprotobuf.pbrpc.utils.TalkTimeoutController;
 public class ProtobufRpcProxy<T> implements InvocationHandler {
 
     /** Logger for this class. */
-    private static final Logger LOGGER = Logger.getLogger(ProtobufRpcProxy.class.getName());
+    private static final Logger LOGGER = LoggerFactory.getLogger(ProtobufRpcProxy.class);
 
     /** The Constant NULL. */
     private static final Object NULL = new Object();
 
     /** Logger for this class. */
-    private static final Logger PERFORMANCE_LOGGER = Logger.getLogger("performance-log");
+    private static final Logger PERFORMANCE_LOGGER = LoggerFactory.getLogger("performance-log");
 
     /**
      * key name for shared RPC channel.
@@ -252,7 +253,7 @@ public class ProtobufRpcProxy<T> implements InvocationHandler {
         if (instance != null) {
             return instance;
         }
-
+        long startTime = System.currentTimeMillis();
         if (channelPoolSharableFactory == null) {
 
             boolean shareChannelPool = rpcClient.getRpcClientOptions().isShareChannelPool();
@@ -338,9 +339,11 @@ public class ProtobufRpcProxy<T> implements InvocationHandler {
             throw new IllegalArgumentException(
                     "This no protobufRpc method in interface class:" + interfaceClass.getName());
         }
-
+        long afterProcessMethodTime = System.currentTimeMillis();
+        LOGGER.info("process method cost {} ms, method num {}", afterProcessMethodTime - startTime, methods.length);
         Class[] clazz = { interfaceClass, ServiceUrlAccessible.class };
         instance = ProxyFactory.createProxy(clazz, interfaceClass.getClassLoader(), this);
+        LOGGER.info("create a new proxy cost {} ms, addr: {}:{}", System.currentTimeMillis() - afterProcessMethodTime, host, port);
         return instance;
     }
 
@@ -373,7 +376,7 @@ public class ProtobufRpcProxy<T> implements InvocationHandler {
             try {
                 rpcChann.close();
             } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, e.getMessage(), e.getCause());
+                LOGGER.warn(e.getMessage(), e.getCause());
             }
         }
         rpcChannelMap.clear();
@@ -483,7 +486,7 @@ public class ProtobufRpcProxy<T> implements InvocationHandler {
 
                 Object ret = interceptor.process(methodInvocationInfo);
                 if (ret != null) {
-                    PERFORMANCE_LOGGER.fine("RPC client invoke method(by intercepter) '" + method.getName()
+                    LOGGER.debug("RPC client invoke method(by intercepter) '" + method.getName()
                             + "' time took:" + (System.currentTimeMillis() - time) + " ms");
                     return ret;
                 }
@@ -516,10 +519,11 @@ public class ProtobufRpcProxy<T> implements InvocationHandler {
             // to check time out setting if need
             long talkTimeout = TalkTimeoutController.getTalkTimeout();
             if (talkTimeout > 0) {
+                /*
                 if (LOGGER.isLoggable(Level.FINE)) {
                     LOGGER.log(Level.FINE,
                             "talk time out is changed by TalkTimeoutController new value is '" + talkTimeout + "'");
-                }
+                }*/
                 onceTalkTimeout = talkTimeout;
             }
 
@@ -560,8 +564,8 @@ public class ProtobufRpcProxy<T> implements InvocationHandler {
                         try {
 
                             Object o = doWaitCallback(method, args, serviceName, m, rpcMethodInfo, callback, -1, null);
-                            PERFORMANCE_LOGGER.fine("RPC client invoke method '" + method.getName() + "' time took:"
-                                    + (System.currentTimeMillis() - time) + " ms");
+                            LOGGER.debug("RPC client invoke method '" + method.getName() + "' time took:"
+                                    + (System.currentTimeMillis() - time) + " ms, callback: " + callback);
                             return o;
                         } catch (Exception e) {
                             throw new ExecutionException(e.getMessage(), e);
@@ -573,7 +577,11 @@ public class ProtobufRpcProxy<T> implements InvocationHandler {
                             throws InterruptedException, ExecutionException, TimeoutException {
 
                         try {
-                            return doWaitCallback(method, args, serviceName, m, rpcMethodInfo, callback, timeout, unit);
+                            // LOGGER.debug("RPC client invoke method " + method.getName());
+                            Object o = doWaitCallback(method, args, serviceName, m, rpcMethodInfo, callback, timeout, unit);
+                            LOGGER.debug("RPC client invoke method '" + method.getName() + "' time took:"
+                                    + (System.currentTimeMillis() - time) + " ms, callback: " + callback);
+                            return o;
                         } catch (Exception e) {
                             throw new ExecutionException(e.getMessage(), e);
                         }
@@ -586,7 +594,7 @@ public class ProtobufRpcProxy<T> implements InvocationHandler {
 
             Object o = doWaitCallback(method, args, serviceName, methodName, rpcMethodInfo, callback, -1, null);
 
-            PERFORMANCE_LOGGER.fine("RPC client invoke method '" + method.getName() + "' time took:"
+            LOGGER.debug("RPC client invoke method '" + method.getName() + "' time took:"
                     + (System.currentTimeMillis() - time) + " ms");
             return o;
         } finally {
@@ -631,6 +639,8 @@ public class ProtobufRpcProxy<T> implements InvocationHandler {
                 }
             }
         }
+        long callbackDoneTime = System.currentTimeMillis();
+        LOGGER.debug("wait callback cost {} ms, callback {}", callbackDoneTime - c.getCreateTime(), c);
 
         RpcDataPackage message = c.getMessage();
 
@@ -662,7 +672,8 @@ public class ProtobufRpcProxy<T> implements InvocationHandler {
                 attachmentHandler.handleResponse(attachment, serviceName, methodName, args);
             }
         }
-
+        long handleResponseDoneTime = System.currentTimeMillis();
+        LOGGER.debug("handle response cost {} ms, callback {}", handleResponseDoneTime - callbackDoneTime, c);
         // handle response data
         byte[] data = message.getData();
         if (data == null) {
@@ -670,6 +681,8 @@ public class ProtobufRpcProxy<T> implements InvocationHandler {
         }
 
         Object o = rpcMethodInfo.outputDecode(data);
+        LOGGER.debug("outputDecode cost {} ms, data len {}, callback {}",
+                System.currentTimeMillis() - handleResponseDoneTime, data.length, c);
         return o;
     }
 

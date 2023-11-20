@@ -19,9 +19,8 @@ package com.baidu.jprotobuf.pbrpc.transport;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
-
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A {@link ChannelFutureListener} implementation of RPC operation complete call back.
@@ -32,7 +31,7 @@ import java.util.logging.Logger;
 public class RpcChannelFutureListener implements ChannelFutureListener {
 
     /** The log. */
-    private static Logger LOG = Logger.getLogger(RpcChannelFutureListener.class.getName());
+    private static Logger LOG = LoggerFactory.getLogger(RpcChannelFutureListener.class);
 
     /** The conn. */
     private Connection conn;
@@ -54,20 +53,20 @@ public class RpcChannelFutureListener implements ChannelFutureListener {
     public void operationComplete(ChannelFuture future) throws Exception {
 
         if (!future.isSuccess()) {
-            LOG.log(Level.WARNING, "build channel:" + future.channel() + " failed");
+            LOG.info("build channel:" + future.channel() + " failed");
             conn.setIsConnected(false);
             return;
         }
 
         RpcClientCallState requestState = null;
         while (null != (requestState = conn.consumeRequest())) {
-            LOG.log(Level.FINEST, "[correlationId:" + requestState.getDataPackage().getRpcMeta().getCorrelationId()
+            LOG.debug("[correlationId:" + requestState.getDataPackage().getRpcMeta().getCorrelationId()
                     + "] send over from queue");
 
             Channel channel = conn.getFuture().channel();
             requestState.setChannel(channel);
 
-            LOG.log(Level.FINE, "Do send request with service name '" + requestState.getDataPackage().serviceName()
+            LOG.debug("Do send request with service name '" + requestState.getDataPackage().serviceName()
                     + "' method name '" + requestState.getDataPackage().methodName() + "' bound channel =>" + channel);
             channel.writeAndFlush(requestState.getDataPackage());
         }

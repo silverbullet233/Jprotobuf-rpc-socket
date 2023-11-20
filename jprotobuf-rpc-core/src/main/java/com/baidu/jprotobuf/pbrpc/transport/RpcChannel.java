@@ -128,7 +128,7 @@ public class RpcChannel {
         }
 
         long callMethodEnd = System.currentTimeMillis();
-        LOG.debug("profiling callMethod cost " + (callMethodEnd - callMethodStart) + "ms");
+        LOG.debug("profiling callMethod " + rpcDataPackage.methodName() + " cost " + (callMethodEnd - callMethodStart) + "ms");
 
     }
 
