@@ -57,6 +57,7 @@ public class ProtobufRpcProxy<T> implements InvocationHandler {
     /** Logger for this class. */
     private static final Logger LOGGER = LoggerFactory.getLogger(ProtobufRpcProxy.class);
 
+
     /** The Constant NULL. */
     private static final Object NULL = new Object();
 

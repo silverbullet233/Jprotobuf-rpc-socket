@@ -21,6 +21,9 @@ import com.google.protobuf.RpcCallback;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * A blocking RPC call back handler.
  * 
@@ -34,7 +37,8 @@ public class BlockingRpcCallback implements RpcCallback<RpcDataPackage> {
     private static Logger LOG = LoggerFactory.getLogger(BlockingRpcCallback.class);
 
     /** The done. */
-    private boolean done = false; // 会话完成标识
+    // private boolean done = false; // 会话完成标识
+    private AtomicBoolean done = new AtomicBoolean(false);
     
     /** The callback done. */
     private CallbackDone callbackDone;
@@ -83,7 +87,8 @@ public class BlockingRpcCallback implements RpcCallback<RpcDataPackage> {
         }
         synchronized (this) {
             LOG.info("done after create {} ms, callback {}", System.currentTimeMillis() - createTime, this);
-            done = true;
+            // done = true;
+            done.set(true);
             this.notifyAll();
         }
         
@@ -104,7 +109,8 @@ public class BlockingRpcCallback implements RpcCallback<RpcDataPackage> {
      * @return true, if is done
      */
     public boolean isDone() {
-        return done;
+        return done.get();
+        // return done;
     }
 
     /**
